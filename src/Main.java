@@ -1,5 +1,4 @@
 
-import java.lang.reflect.Array;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.regex.Matcher;
@@ -49,16 +48,21 @@ public class Main
                 case 1:
                     GasStation.printLog();
                     break;
-                //Выход из  программы
+                //Выход из программы
                 case 0:
                     isExitFlag = true;
                     break;
                 // Заправка или пополнение резервуара
                 default:
-                    if(!gasStationRefill(station, request))
+
+                    // Регистрация запроса в журнале действий
+                    try
                     {
-                        GasStation.stationLogger("Неверный запрос\n");
-                        System.out.println("Неверный запрос");
+                        GasStation.stationLogger(gasStationRefill(station, request));
+                    }
+                    catch (GasStationException ex)
+                    {
+                        System.out.println(ex.getMessage());
                     }
             }
         }
@@ -134,7 +138,7 @@ public class Main
         matcher = pattern.matcher(stationRequest);
 
         if (isRefillTank)
-            resultArr[resNum] = (matcher.find()) ? Integer.parseInt(stationRequest.substring(matcher.start(), matcher.end())) : 0;
+            resultArr[++resNum] = (matcher.find()) ? Integer.parseInt(stationRequest.substring(matcher.start(), matcher.end())) : 0;
         else
         {
             while (matcher.find() && resNum < 3)
@@ -158,24 +162,54 @@ public class Main
         return resultArr;
     }
 
-    private static boolean gasStationRefill(GasStation[]station, String request)
+    /**
+     * Метод работы заправки
+     * @param station - массив колонок
+     * @param request - запрос к заправке
+     * @return - сообщение о результате
+     */
+    private static String gasStationRefill(GasStation[]station, String request)
     {
-        // Регистрация запроса в журнале действий
-        GasStation.stationLogger(request);
+        String errMsg = "";
+        StringBuilder logMsg = new StringBuilder();
+        logMsg.append(request);
         // Разбор запроса и получение аргументов
         int[] resArr = stationRequestParser(request);
         // Если номер колонки не определён значит это пополнение резервуара
         if(resArr[1] == 0)
         {
-            return GasStation.tankFilling(resArr);
+            try
+            {
+                logMsg.append(GasStation.tankFilling(resArr));
+            }
+            catch (GasStationException ex)
+            {
+                errMsg = ex.getMessage();
+            }
         }
         else
         {
             // Заправка
-            if(resArr[1] <= Array.getLength(station))
-                return station[resArr[1] - 1].gasFilling(resArr);
+            try
+            {
+                logMsg.append(station[resArr[1] - 1].gasFilling(resArr));
+            }
+            catch (GasStationException ex)
+            {
+                errMsg = ex.getMessage();
+            }
+            catch (NullPointerException ex)
+            {
+                errMsg = String.format("Колонка %d недоступна", resArr[1]);
+            }
+            catch (IndexOutOfBoundsException ex)
+            {
+                errMsg = String.format("Нет колонки с номером %d", resArr[1]);
+            }
         }
-        return false;
+        logMsg.append(errMsg.isEmpty()? "" : errMsg + "\nНеверный запрос!");
+        System.out.println(logMsg);
+        return logMsg.toString();
     }
 
     /**
